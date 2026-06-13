@@ -1,0 +1,1 @@
+{{ $row->users_count }}

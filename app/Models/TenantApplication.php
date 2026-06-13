@@ -43,4 +43,16 @@ class TenantApplication extends Model
     {
         return $this->expired_at !== null && $this->expired_at->isPast();
     }
+
+    /**
+     * License yang perlu diperhatikan: aktif + akan/sudah expired dalam window hari.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\HasMany  $query
+     */
+    public function scopeExpiringWithin($query, int $days = 30)
+    {
+        return $query->where('is_active', true)
+            ->whereNotNull('expired_at')
+            ->where('expired_at', '<=', now()->addDays($days));
+    }
 }

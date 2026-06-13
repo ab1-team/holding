@@ -3,11 +3,20 @@
 @section('title', 'Undang Staff — Holding App')
 
 @section('content')
-<div class="mb-6">
-    <p class="text-xs font-semibold uppercase tracking-wider text-secondary">Staff</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Undang Staff</h1>
-    <p class="mt-1 text-sm text-on-surface-variant">Untuk tenant <strong class="font-semibold text-on-surface">{{ $tenant->name }}</strong></p>
-</div>
+@php
+    $inviteSubtitle = 'Untuk tenant <strong class="font-semibold text-on-surface">' . e($tenant->name) . '</strong>';
+@endphp
+<x-ui.breadcrumb :items="[
+    ['label' => 'Staff', 'href' => route('tenant.staff.index')],
+    ['label' => 'Undang Staff'],
+]" class="mb-2" />
+
+<x-ui.page-header
+    overline="Staff"
+    title="Undang Staff"
+    :subtitle="$inviteSubtitle"
+/>
+
 <x-ui.card>
     <form method="POST" action="{{ route('tenant.staff.store') }}" class="space-y-5">
         @csrf
@@ -23,12 +32,12 @@
             :searchable="false"
             :clearable="false"
             required />
-        <div>
-            <label for="password" class="mb-1.5 block text-sm font-medium text-on-surface">Password <span class="text-xs font-normal text-on-surface-variant">(opsional)</span></label>
-            <input type="password" name="password" id="password" minlength="8" autocomplete="new-password" class="block w-full rounded-lg border border-outline bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none @error('password') border-error @enderror">
-            <p class="mt-1.5 text-xs text-on-surface-variant">Kosongkan untuk generate otomatis. Minimal 8 karakter.</p>
-            @error('password') <p class="mt-1.5 text-xs text-error">{{ $message }}</p> @enderror
-        </div>
+        <x-ui.input
+            name="password"
+            type="password"
+            label="Password"
+            hint="Kosongkan untuk generate otomatis. Minimal 8 karakter."
+        />
         <div class="rounded-2xl bg-surface-container p-4">
             <x-ui.switcher name="is_active" label="Aktif" :checked="old('is_active', true)" />
         </div>

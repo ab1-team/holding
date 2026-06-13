@@ -1,4 +1,4 @@
-<div class="relative w-full" x-data="{ open: false, search: '' }" @click.outside="open = false">
+<div class="relative" x-data="{ open: false, search: '', dropup: false }" @click.outside="open = false">
     @if($label)
     <label class="mb-1.5 block text-sm font-medium text-on-surface">
         {{ $label }}
@@ -6,8 +6,8 @@
     </label>
     @endif
 
-    <button type="button" @click="open = !open"
-            class="inline-flex w-full items-center justify-between gap-2 rounded-lg border bg-surface-container-lowest px-3.5 h-10 text-sm text-left transition focus:ring-2 focus:outline-none min-w-[10rem] {{ $error ? 'border-error focus:border-error focus:ring-error/30' : 'border-outline focus:border-primary focus:ring-primary/30' }}">
+    <button type="button" @click="open = !open; $nextTick(() => { const btn = $el; const panel = btn.parentElement.querySelector('[x-show]'); if (panel) { const rect = btn.getBoundingClientRect(); const spaceBelow = window.innerHeight - rect.bottom; dropup = spaceBelow < 220; } })"
+            class="inline-flex w-full items-center justify-between gap-2 rounded-full border bg-surface-container-lowest px-4 h-10 text-sm text-left transition focus:ring-2 focus:outline-none min-w-0 {{ $error ? 'border-error focus:border-error focus:ring-error/30' : 'border-outline focus:border-primary focus:ring-primary/30' }}">
         <span class="truncate" :class="!@js($this->selectedLabel) ? 'text-on-surface-variant' : 'text-on-surface'">
             {{ $this->selectedLabel ?? $placeholder }}
         </span>
@@ -17,12 +17,13 @@
                 <x-ui.icon name="x-mark" class="h-4 w-4 text-on-surface-variant" />
             </span>
             @endif
-            <x-ui.icon name="chevron-down" class="h-4 w-4 text-on-surface-variant" />
+            <x-ui.icon name="chevron-down" class="h-4 w-4 text-on-surface-variant transition-transform" x-bind:class="open && dropup ? 'rotate-180' : ''" />
         </span>
     </button>
 
     <div x-show="open" x-cloak x-transition.opacity
-         class="absolute left-0 z-50 mt-2 w-full overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-elevated-lg">
+         :class="dropup ? 'bottom-full mb-2' : 'top-full mt-2'"
+         class="absolute left-0 z-50 w-full overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-elevated-lg">
         @if($searchable)
         <div class="border-b border-outline-variant p-2">
             <div class="relative">
@@ -45,7 +46,7 @@
                 </button>
             </li>
             @endforeach
-            <li x-show="!Array.from($el.parentElement.children).some(li => li.style.display !== 'none' && li !== $el)" class="px-3 py-4 text-center text-sm text-on-surface-variant">Tidak ada hasil.</li>
+            <li x-show="!search && !@js(count($options)) || (search && !@js(count($options)))" class="px-3 py-4 text-center text-sm text-on-surface-variant">Tidak ada hasil.</li>
         </ul>
     </div>
 

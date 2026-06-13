@@ -13,6 +13,13 @@
         </div>
     </div>
 
+    <x-ui.input
+        name="domain"
+        label="Domain"
+        :value="$tenant->domain ?? ''"
+        placeholder="contoh: kantan-bumdesma.net"
+        hint="Domain utama tenant. Dikirim sebagai header <code class='rounded bg-surface-container px-1 py-0.5 font-mono text-[11px]'>X-Holding-Tenant</code> ke subsidiary. Kosongkan untuk fallback ke slug." />
+
     <div class="grid gap-4 sm:grid-cols-2">
         <x-ui.input name="email" type="email" label="Email" :value="$tenant->email ?? ''" required />
         <x-ui.input name="phone" label="Telepon" :value="$tenant->phone ?? ''" placeholder="+62..." />

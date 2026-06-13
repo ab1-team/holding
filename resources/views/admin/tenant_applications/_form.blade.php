@@ -4,7 +4,7 @@ $selectedAppId = old('application_id', $license->application_id ?? '');
 $availableApps = $availableApplications ?? collect();
 @endphp
 
-<form method="POST" action="{{ $isEdit ? route('admin.licenses.update', $license) : route('admin.tenants.licenses.store', $tenant) }}" class="space-y-5">
+<form method="POST" action="{{ $isEdit ? route('admin.tenants.licenses.update', [$tenant, $license]) : route('admin.tenants.licenses.store', $tenant) }}" class="space-y-5">
     @csrf
     @if($isEdit) @method('PUT') @endif
 
@@ -38,6 +38,7 @@ $availableApps = $availableApplications ?? collect();
 
     <div class="grid gap-4 sm:grid-cols-2">
         <x-ui.input name="label" label="Label" :value="$license->label ?? ''" placeholder="cth: Produksi" hint="Label internal untuk identifikasi lisensi." />
+        <x-ui.input name="activated_at" type="date" label="Tanggal Aktivasi" :value="isset($license) && $license->activated_at ? $license->activated_at->format('Y-m-d') : ''" hint="Tanggal lisensi mulai berlaku." />
         <x-ui.input name="expired_at" type="date" label="Tanggal Kedaluwarsa" :value="isset($license) && $license->expired_at ? $license->expired_at->format('Y-m-d') : ''" hint="Kosongkan untuk lisensi perpetual." />
     </div>
 

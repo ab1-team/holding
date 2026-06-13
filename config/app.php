@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Domain Base (Subdomain Tenant Detection)
+    |--------------------------------------------------------------------------
+    |
+    | Base domain untuk deteksi subdomain tenant. Contoh: "holding.test"
+    | (local) atau "holdingapp.com" (production). Tenant diakses via
+    | "{slug}.{domain_base}", admin vendor via "admin.{domain_base}".
+    |
+    */
+
+    'domain_base' => env('APP_DOMAIN_BASE', 'holding.test'),
+
 ];

@@ -14,9 +14,9 @@ class ApplicationController extends Controller
     public function index(Request $request): View
     {
         return view('admin.applications.index', [
-            'columns' => $this->tableColumns(),
             'searchPlaceholder' => 'Cari nama, slug, atau base url...',
             'empty' => 'Belum ada aplikasi. Tambah aplikasi pertama Anda.',
+            'initialSearch' => $request->query('search', ''),
         ]);
     }
 
@@ -31,7 +31,7 @@ class ApplicationController extends Controller
             ['label' => 'Base URL', 'format' => fn($a) => '<a href="' . e($a->base_url) . '" target="_blank" rel="noopener" class="font-medium text-primary hover:underline">' . e(parse_url($a->base_url, PHP_URL_HOST)) . '</a>'],
             ['label' => 'Laporan', 'format' => fn($a) => '<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ' . ($a->has_financial_report ? 'bg-sky-100 text-sky-800' : 'bg-surface-container text-on-surface-variant') . '">' . ($a->has_financial_report ? 'Aktif' : 'Tidak') . '</span>'],
             ['label' => 'Status', 'format' => fn($a) => '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ' . ($a->is_active ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container text-on-surface-variant') . '"><span class="h-1.5 w-1.5 rounded-full ' . ($a->is_active ? 'bg-secondary' : 'bg-on-surface-variant') . '"></span>' . ($a->is_active ? 'Aktif' : 'Nonaktif') . '</span>'],
-            ['label' => 'Aksi', 'align' => 'right', 'format' => fn($a) => '<a href="' . e(route('admin.applications.show', $a)) . '" class="text-primary hover:underline">Detail</a><a href="' . e(route('admin.applications.edit', $a)) . '" class="ml-3 text-on-surface-variant hover:text-on-surface">Edit</a>'],
+            ['label' => 'Aksi', 'align' => 'right', 'view' => 'admin.applications._cell_actions'],
         ];
     }
 

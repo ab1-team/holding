@@ -3,19 +3,15 @@
 @section('title', "Log #{$log->id} — Holding App")
 
 @section('content')
-<nav class="mb-4 text-sm">
-    <ol class="flex items-center gap-2 text-on-surface-variant">
-        <li><a href="{{ route('admin.activity-logs.index') }}" class="hover:text-primary">Log Aktivitas</a></li>
-        <li>/</li>
-        <li class="text-on-surface">#{{ $log->id }}</li>
-    </ol>
-</nav>
+<x-ui.breadcrumb :items="[
+    ['label' => 'Log Aktivitas', 'href' => route('admin.activity-logs.index')],
+    ['label' => '#' . $log->id],
+]" class="mb-4" />
 
-<div class="mb-6">
-    <p class="text-xs font-semibold uppercase tracking-wider text-primary">Master</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Detail Log</h1>
-    <p class="mt-1 text-sm text-on-surface-variant">{{ $log->created_at->translatedFormat('l, d F Y, H:i:s') }}</p>
-</div>
+<x-ui.page-header
+    overline="Master"
+    title="Detail Log"
+    subtitle="{{ $log->created_at->translatedFormat('l, d F Y, H:i:s') }}" />
 
 <x-ui.card>
     <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">

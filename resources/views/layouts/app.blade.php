@@ -39,12 +39,12 @@
             <main class="flex min-w-0 flex-1 flex-col">
                 @if (session('status'))
                     <div class="px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8">
-                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{{ session('status') }}</div>
+                        <x-ui.alert variant="success" icon="check-circle">{{ session('status') }}</x-ui.alert>
                     </div>
                 @endif
                 @if ($errors->any() && ! request()->routeIs('login'))
                     <div class="px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8">
-                        <div class="rounded-lg border border-error-container bg-error-container/30 px-4 py-3 text-sm text-on-error-container">{{ $errors->first() }}</div>
+                        <x-ui.alert variant="error" icon="x-circle">{{ $errors->first() }}</x-ui.alert>
                     </div>
                 @endif
 
@@ -62,7 +62,6 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     @livewireScripts
     @stack('scripts')
 </body>

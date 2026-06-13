@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@source '../../**/*.blade.php';
+@source '../../**/*.php';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
@@ -51,3 +53,122 @@
 }
 
 [x-cloak]{display:none!important}
+
+/* Flatpickr theme overrides — Material 3 tokens */
+.flatpickr-calendar {
+    border-radius: 1rem;
+    box-shadow: var(--shadow-elevated-lg);
+    border: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-lowest);
+    font-family: var(--font-sans);
+    color: var(--color-on-surface);
+    padding: 0.5rem;
+    width: 18rem;
+}
+.flatpickr-calendar::before,
+.flatpickr-calendar::after { display: none; }
+.flatpickr-months {
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+    background: transparent;
+    color: var(--color-on-surface);
+    font-weight: 600;
+}
+.flatpickr-current-month input.cur-year {
+    font-size: 0.95rem;
+}
+.flatpickr-current-month .numInputWrapper {
+    border-radius: 9999px;
+    padding: 0.15rem 0.4rem;
+    transition: background-color 0.15s;
+}
+.flatpickr-current-month .numInputWrapper:hover,
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover {
+    background: var(--color-surface-container);
+}
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+    padding: 0.5rem;
+    border-radius: 9999px;
+    transition: background-color 0.15s;
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+    background: var(--color-surface-container);
+}
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg {
+    fill: var(--color-on-surface-variant);
+    transition: fill 0.15s;
+}
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+    fill: var(--color-primary);
+}
+.flatpickr-weekdays {
+    background: transparent;
+    margin-top: 0.25rem;
+}
+.flatpickr-weekday {
+    background: transparent;
+    color: var(--color-on-surface-variant);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.flatpickr-days,
+.flatpickr-innerContainer { border: none !important; }
+.flatpickr-day {
+    color: var(--color-on-surface);
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+    font-weight: 500;
+    line-height: 36px;
+    height: 36px;
+    max-width: 36px;
+}
+.flatpickr-day.weekend { color: var(--color-on-surface); }
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay { color: var(--color-on-surface-variant); opacity: 0.6; }
+.flatpickr-day:hover:not(.selected):not(.disabled) {
+    background: var(--color-surface-container);
+}
+.flatpickr-day.today {
+    border-color: var(--color-primary);
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+}
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.disabled {
+    color: var(--color-on-surface-variant);
+    opacity: 0.4;
+}
+.flatpickr-day.inRange {
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    box-shadow: -5px 0 0 var(--color-primary-container), 5px 0 0 var(--color-primary-container);
+    border-radius: 0;
+}
+.numInputWrapper:hover { background: var(--color-surface-container); }
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    border-radius: 9999px;
+    font-weight: 600;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 1.25rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'><path fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.25rem center;
+    background-size: 1rem;
+}

@@ -3,10 +3,16 @@
 @section('title', "Edit Staff — {$staff->name}")
 
 @section('content')
-<div class="mb-6">
-    <p class="text-xs font-semibold uppercase tracking-wider text-secondary">Staff</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Edit {{ $staff->name }}</h1>
-</div>
+<x-ui.breadcrumb :items="[
+    ['label' => 'Staff', 'href' => route('tenant.staff.index')],
+    ['label' => 'Edit ' . $staff->name],
+]" class="mb-2" />
+
+<x-ui.page-header
+    overline="Staff"
+    :title="'Edit ' . $staff->name"
+/>
+
 <x-ui.card>
     <form method="POST" action="{{ route('tenant.staff.update', $staff) }}" class="space-y-5">
         @csrf @method('PUT')
@@ -22,11 +28,12 @@
             :searchable="false"
             :clearable="false"
             required />
-        <div>
-            <label for="password" class="mb-1.5 block text-sm font-medium text-on-surface">Password Baru <span class="text-xs font-normal text-on-surface-variant">(kosongkan jika tidak diubah)</span></label>
-            <input type="password" name="password" id="password" minlength="8" autocomplete="new-password" class="block w-full rounded-lg border border-outline bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none @error('password') border-error @enderror">
-            @error('password') <p class="mt-1.5 text-xs text-error">{{ $message }}</p> @enderror
-        </div>
+        <x-ui.input
+            name="password"
+            type="password"
+            label="Password Baru"
+            hint="Kosongkan jika tidak diubah. Minimal 8 karakter."
+        />
         <div class="rounded-2xl bg-surface-container p-4">
             <x-ui.switcher name="is_active" label="Aktif" :checked="$staff->is_active" />
         </div>

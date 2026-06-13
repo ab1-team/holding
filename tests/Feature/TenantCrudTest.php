@@ -28,7 +28,7 @@ class TenantCrudTest extends TestCase
             ->assertOk()
             ->assertSee('PT Maju')
             ->assertSee('CV Sentosa')
-            ->assertSee('1', '<span class="badge bg-light text-dark">1</span>');
+            ->assertSee('1');
     }
 
     public function test_search_filters_by_name_slug_or_email(): void
@@ -76,6 +76,54 @@ class TenantCrudTest extends TestCase
         ])->assertRedirect();
 
         $this->assertDatabaseHas('tenants', ['slug' => 'kustom-123']);
+    }
+
+    public function test_store_rejects_reserved_slug(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)->post(route('admin.tenants.store'), [
+            'name' => 'Test',
+            'slug' => 'admin',
+            'email' => 'a@b.test',
+            'phone' => '08',
+        ])->assertSessionHasErrors('slug');
+
+        $this->assertDatabaseMissing('tenants', ['slug' => 'admin']);
+    }
+
+    public function test_update_persists_domain_field(): void
+    {
+        $admin = $this->superadmin();
+        $tenant = Tenant::factory()->create();
+
+        $this->actingAs($admin)->put(route('admin.tenants.update', $tenant), [
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+            'domain' => 'kantan-bumdesma.net',
+            'email' => $tenant->email,
+            'phone' => $tenant->phone,
+            'is_active' => 1,
+        ])->assertRedirect();
+
+        $this->assertSame('kantan-bumdesma.net', $tenant->fresh()->domain);
+    }
+
+    public function test_update_can_clear_domain(): void
+    {
+        $admin = $this->superadmin();
+        $tenant = Tenant::factory()->create(['domain' => 'old.example.com']);
+
+        $this->actingAs($admin)->put(route('admin.tenants.update', $tenant), [
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+            'domain' => '',
+            'email' => $tenant->email,
+            'phone' => $tenant->phone,
+            'is_active' => 1,
+        ])->assertRedirect();
+
+        $this->assertNull($tenant->fresh()->domain);
     }
 
     public function test_store_ensures_unique_slug_with_suffix(): void

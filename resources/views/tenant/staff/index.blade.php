@@ -3,17 +3,21 @@
 @section('title', "Staff — {$tenant->name}")
 
 @section('content')
-<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-secondary">Staff</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Manajemen Staff</h1>
-        <p class="mt-1 text-sm text-on-surface-variant">Staff di tenant <strong class="font-semibold text-on-surface">{{ $tenant->name }}</strong></p>
-    </div>
-    <x-ui.button :href="route('tenant.staff.create')" icon="plus">Undang Staff</x-ui.button>
-</div>
+@php
+    $staffSubtitle = 'Staff di tenant <strong class="font-semibold text-on-surface">' . e($tenant->name) . '</strong>';
+@endphp
+<x-ui.page-header
+    overline="Staff"
+    title="Manajemen Staff"
+    :subtitle="$staffSubtitle"
+>
+    <x-slot:actions>
+        <x-ui.button :href="route('tenant.staff.create')" icon="plus">Undang Staff</x-ui.button>
+    </x-slot:actions>
+</x-ui.page-header>
 
 @if(session('status'))
-    <div class="mb-4"><x-ui.alert variant="success">{{ session('status') }}</x-ui.alert></div>
+    {{-- status handled by layout --}}
 @endif
 @if(session('new_password'))
     <div class="mb-4">
@@ -51,18 +55,19 @@
                         </div>
                     </td>
                     <td class="whitespace-nowrap px-5 py-4 text-sm">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $s->role === 'tenant_owner' ? 'bg-secondary-container text-on-secondary-container' : 'bg-tertiary-container text-on-tertiary-container' }}">
+                        <x-ui.badge :variant="$s->role === 'tenant_owner' ? 'success' : 'warning'">
                             {{ $s->role === 'tenant_owner' ? 'Pemilik' : 'Staff' }}
-                        </span>
+                        </x-ui.badge>
                     </td>
                     <td class="whitespace-nowrap px-5 py-4 text-sm">
-                        <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $s->is_active ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container text-on-surface-variant' }}">
-                            <span class="h-1.5 w-1.5 rounded-full {{ $s->is_active ? 'bg-secondary' : 'bg-on-surface-variant' }}"></span>
+                        <x-ui.status-badge :status="$s->is_active">
                             {{ $s->is_active ? 'Aktif' : 'Nonaktif' }}
-                        </span>
+                        </x-ui.status-badge>
                     </td>
                     <td class="whitespace-nowrap px-5 py-4 text-right text-sm font-medium sm:px-6">
-                        <a href="{{ route('tenant.staff.edit', $s) }}" class="text-on-surface-variant hover:text-on-surface">Edit</a>
+                        <div class="flex items-center justify-end gap-1">
+                            <x-ui.button :href="route('tenant.staff.edit', $s)" variant="text" size="sm" icon="pencil" title="Edit staff" />
+                        </div>
                     </td>
                 </tr>
                 @empty

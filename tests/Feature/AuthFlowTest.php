@@ -73,12 +73,63 @@ class AuthFlowTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        $this->post('/login', [
+        session()->forget('url.intended');
+        request()->server->set('HTTP_HOST', $tenant->slug . '.holding.test');
+        \Illuminate\Support\Facades\URL::forceRootUrl('http://' . $tenant->slug . '.holding.test');
+
+        $resp = $this->post('/login', [
             'email' => 'owner@tenant.test',
             'password' => 'password',
-        ])->assertRedirect(route('tenant.home'));
+        ]);
 
-        $this->assertAuthenticated();
+        $loc = $resp->headers->get('Location');
+        $this->assertSame(
+            'http://' . $tenant->slug . '.holding.test/app',
+            $loc,
+            "status={$resp->getStatusCode()} loc={$loc} auth=" . (auth()->check() ? 'y' : 'n')
+        );
+    }
+
+    public function test_tenant_owner_cannot_login_on_wrong_subdomain(): void
+    {
+        $acme = Tenant::factory()->create(['slug' => 'acme']);
+        $beta = Tenant::factory()->create(['slug' => 'beta']);
+        User::factory()->forTenant($acme->id, 'tenant_owner')->create([
+            'email' => 'owner@acme.test',
+            'password' => Hash::make('password'),
+        ]);
+
+        session()->forget('url.intended');
+        request()->server->set('HTTP_HOST', 'beta.holding.test');
+        \Illuminate\Support\Facades\URL::forceRootUrl('http://beta.holding.test');
+
+        $this->post('/login', [
+            'email' => 'owner@acme.test',
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
+
+    public function test_superadmin_cannot_login_on_tenant_subdomain(): void
+    {
+        $acme = Tenant::factory()->create(['slug' => 'acme']);
+        User::factory()->create([
+            'email' => 'admin@holding.local',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'role' => 'superadmin',
+        ]);
+
+        session()->forget('url.intended');
+        request()->server->set('HTTP_HOST', 'acme.holding.test');
+        \Illuminate\Support\Facades\URL::forceRootUrl('http://acme.holding.test');
+
+        $this->post('/login', [
+            'email' => 'admin@holding.local',
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
     }
 
     public function test_guest_cannot_access_admin_dashboard(): void

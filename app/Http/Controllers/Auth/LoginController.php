@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,13 @@ class LoginController extends Controller
 {
     public function show(): View
     {
-        return view('auth.login');
+        $currentTenant = app()->bound('current_tenant') ? app('current_tenant') : null;
+        $isVendorPanel = (bool) request()->attributes->get('is_vendor_panel');
+
+        return view('auth.login', [
+            'currentTenant' => $currentTenant,
+            'isVendorPanel' => $isVendorPanel,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -39,6 +46,30 @@ class LoginController extends Controller
             ]);
         }
 
+        // Subdomain guard — strict: tenant user hanya di subdomain tenant-nya.
+        $currentTenant = app()->bound('current_tenant') ? app('current_tenant') : null;
+        $isVendorPanel = (bool) $request->attributes->get('is_vendor_panel');
+        $baseDomain = config('app.domain_base');
+
+        if ($user->isSuperadmin() && ! $isVendorPanel) {
+            throw ValidationException::withMessages([
+                'email' => "Akun vendor hanya dapat login di admin.{$baseDomain}.",
+            ]);
+        }
+
+        if (! $user->isSuperadmin()) {
+            // tenant_owner / tenant_staff harus di subdomain tenant-nya
+            if ($isVendorPanel || $currentTenant === null || $currentTenant->id !== $user->tenant_id) {
+                $correctHost = $user->tenant
+                    ? $user->tenant->getSubdomainUrl()
+                    : null;
+                $msg = $correctHost
+                    ? "Akun ini milik tenant lain. Silakan login di {$correctHost}."
+                    : 'Akun Anda belum terikat ke tenant manapun. Hubungi administrator.';
+                throw ValidationException::withMessages(['email' => $msg]);
+            }
+        }
+
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
@@ -50,7 +81,10 @@ class LoginController extends Controller
             'action' => 'login',
             'subject_type' => User::class,
             'subject_id' => $user->id,
-            'metadata' => ['remember' => $request->boolean('remember')],
+            'metadata' => [
+                'remember' => $request->boolean('remember'),
+                'subdomain' => $isVendorPanel ? 'admin' : ($currentTenant?->slug),
+            ],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);

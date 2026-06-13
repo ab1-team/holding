@@ -20,6 +20,7 @@ class Input extends Component
         public ?string $min = null,
         public ?string $max = null,
         public ?string $step = null,
+        public bool $clearable = false,
     ) {}
 
     public function resolvedValue(): ?string

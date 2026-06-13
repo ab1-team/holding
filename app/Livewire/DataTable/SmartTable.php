@@ -2,7 +2,7 @@
 
 namespace App\Livewire\DataTable;
 
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -32,8 +32,20 @@ class SmartTable extends Component
     #[Url(except: 15)]
     public int $perPage = 15;
 
+    #[Url(except: 1)]
+    public int $page = 1;
+
+    /** @var array<int, string> */
+    public array $searchableColumns = [];
+
     /** @var array<string, mixed> */
     public array $extraFilters = [];
+
+    /** @var array<int, string> */
+    public array $withRelations = [];
+
+    /** @var array<int, array{label:string,field?:string,view?:string,align?:string}> */
+    public array $columns = [];
 
     public function mount(
         string $model,
@@ -46,6 +58,9 @@ class SmartTable extends Component
         string $createLabel = 'Tambah',
         ?string $createIcon = 'plus',
         array $perPageOptions = [10, 15, 25, 50, 100],
+        array $searchableColumns = [],
+        array $columns = [],
+        array $withRelations = [],
     ): void {
         $this->model = $model;
         $this->title = $title;
@@ -57,41 +72,61 @@ class SmartTable extends Component
         $this->createLabel = $createLabel;
         $this->createIcon = $createIcon;
         $this->perPageOptions = $perPageOptions;
+        $this->searchableColumns = $searchableColumns;
+        $this->columns = $columns;
+        $this->withRelations = $withRelations;
     }
 
     public function updatedSearch(): void
     {
-        $this->resetPage();
+        $this->page = 1;
     }
 
     public function updatedPerPage(): void
     {
-        $this->resetPage();
+        $this->page = 1;
     }
 
     public function clearSearch(): void
     {
         $this->search = '';
-        $this->resetPage();
+        $this->page = 1;
+    }
+
+    public function goToPage(int $p): void
+    {
+        $this->page = max(1, $p);
     }
 
     public function getItemsProperty(): LengthAwarePaginator
     {
         $modelClass = $this->model;
         if (! class_exists($modelClass)) {
-            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $this->perPage);
+            return new LengthAwarePaginator([], 0, $this->perPage, $this->page);
         }
         /** @var Builder $query */
         $query = $modelClass::query();
+        if (! empty($this->withRelations)) {
+            $query->with($this->withRelations);
+        }
 
         if ($this->search !== '') {
             $term = '%' . $this->search . '%';
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('name', 'like', $term)
-                  ->orWhere('email', 'like', $term)
-                  ->orWhere('slug', 'like', $term)
-                  ->orWhere('base_url', 'like', $term);
-            });
+            $columns = $this->searchableColumns;
+            if (empty($columns)) {
+                $columns = array_filter(
+                    \Schema::getColumnListing($modelClass::query()->getModel()->getTable()),
+                    fn (string $col) => in_array($col, ['name', 'title', 'slug', 'email', 'base_url', 'description', 'phone'])
+                );
+                $columns = array_values($columns);
+            }
+            if (! empty($columns)) {
+                $query->where(function (Builder $q) use ($term, $columns) {
+                    foreach ($columns as $col) {
+                        $q->orWhere($col, 'like', $term);
+                    }
+                });
+            }
         }
 
         foreach ($this->extraFilters as $key => $value) {
@@ -100,7 +135,12 @@ class SmartTable extends Component
             }
         }
 
-        return $query->orderBy('id', 'desc')->paginate($this->perPage);
+        $total = $query->count();
+        $items = $query->orderBy('id', 'desc')
+            ->forPage($this->page, $this->perPage)
+            ->get();
+
+        return new LengthAwarePaginator($items, $total, $this->perPage, $this->page);
     }
 
     public function render()

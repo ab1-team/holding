@@ -40,10 +40,20 @@ class DashboardController extends Controller
             ? $tenant->tenantApplications()->with('application')->where('is_active', true)->get()
             : collect();
 
+        // License yang perlu diperhatikan (≤ 30 hari atau sudah expired) untuk banner notifikasi.
+        $expiringSoon = $tenant
+            ? $tenant->tenantApplications()
+                ->with('application')
+                ->expiringWithin(30)
+                ->orderBy('expired_at')
+                ->get()
+            : collect();
+
         return view('dashboards.tenant', [
             'user' => $user,
             'tenant' => $tenant,
             'applications' => $applications,
+            'expiringSoon' => $expiringSoon,
         ]);
     }
 }

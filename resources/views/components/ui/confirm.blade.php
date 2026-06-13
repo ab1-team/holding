@@ -1,7 +1,11 @@
 @props(['trigger' => null])
 <div x-data="{ open: false }" x-on:keydown.escape.window="open = false" class="contents">
-    <span @click="open = true">
-        {{ $trigger }}
+    <span @click="open = true" class="contents">
+        @if($trigger)
+            {{ $trigger }}
+        @else
+            {{ $slot }}
+        @endif
     </span>
     <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div x-show="open" x-transition.opacity @click="open = false" class="absolute inset-0 bg-black/50"></div>

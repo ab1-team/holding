@@ -3,20 +3,26 @@
 @section('title', "Edit Lisensi — Holding App")
 
 @section('content')
-<nav class="mb-4 text-sm">
-    <ol class="flex items-center gap-2 text-on-surface-variant">
-        <li><a href="{{ route('admin.tenants.index') }}" class="hover:text-primary">Tenant</a></li>
-        <li>/</li>
-        <li><a href="{{ route('admin.tenants.show', $license->tenant) }}" class="hover:text-primary">{{ $license->tenant->name }}</a></li>
-        <li>/</li>
-        <li class="text-on-surface">Edit Lisensi {{ $license->application->name }}</li>
-    </ol>
-</nav>
-<div class="mb-6">
-    <p class="text-xs font-semibold uppercase tracking-wider text-primary">Lisensi</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Edit Lisensi</h1>
-</div>
-<x-ui.card>
+<x-ui.breadcrumb :items="[
+    ['label' => 'Tenant', 'href' => route('admin.tenants.index')],
+    ['label' => $license->tenant->name, 'href' => route('admin.tenants.show', $license->tenant)],
+    ['label' => 'Edit Lisensi ' . $license->application->name],
+]" class="mb-4" />
+
+<x-ui.page-header
+    overline="Lisensi"
+    title="Edit Lisensi"
+    subtitle="<strong class='font-semibold text-on-surface'>{{ $license->application->name }}</strong> untuk tenant <strong class='font-semibold text-on-surface'>{{ $license->tenant->name }}</strong>.">
+    <x-slot:actions>
+        <x-ui.button :href="route('admin.tenants.show', $license->tenant)" variant="outlined" icon="arrow-left">Kembali</x-ui.button>
+    </x-slot:actions>
+</x-ui.page-header>
+
+@if($errors->any())
+    <div class="mb-4"><x-ui.alert variant="error" icon="exclamation" title="Gagal menyimpan.">{{ $errors->first() }}</x-ui.alert></div>
+@endif
+
+<x-ui.card overline="Formulir" title="Detail Lisensi">
     @include('admin.tenant_applications._form')
 </x-ui.card>
 @endsection

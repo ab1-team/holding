@@ -35,6 +35,20 @@ class LicenseAndAccessTest extends TestCase
             ->assertDontSee('EnStore');
     }
 
+    public function test_license_form_has_datepicker_attributes(): void
+    {
+        $admin = $this->superadmin();
+        $tenant = Tenant::factory()->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.tenants.licenses.create', $tenant))
+            ->assertOk()
+            ->assertSee('data-datepicker', false)
+            ->assertSee('name="expired_at"', false)
+            ->assertSee('name="activated_at"', false)
+            ->assertSee('name="instance_url"', false);
+    }
+
     public function test_store_creates_license_with_auto_secret(): void
     {
         $admin = $this->superadmin();
@@ -89,6 +103,20 @@ class LicenseAndAccessTest extends TestCase
             ->assertSessionHasErrors('expired_at');
     }
 
+    public function test_edit_license_form_renders_with_tenant_context(): void
+    {
+        $admin = $this->superadmin();
+        $tenant = Tenant::factory()->create();
+        $app = Application::factory()->create();
+        $license = TenantApplication::factory()->for($tenant)->for($app, 'application')->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.tenants.licenses.edit', [$tenant, $license]))
+            ->assertOk()
+            ->assertSee('Edit Lisensi')
+            ->assertSee($tenant->name);
+    }
+
     public function test_update_modifies_license(): void
     {
         $admin = $this->superadmin();
@@ -97,7 +125,7 @@ class LicenseAndAccessTest extends TestCase
         $license = TenantApplication::factory()->for($tenant)->for($app, 'application')->create();
 
         $this->actingAs($admin)
-            ->put(route('admin.licenses.update', $license), [
+            ->put(route('admin.tenants.licenses.update', [$tenant, $license]), [
                 'application_id' => $app->id,
                 'instance_url' => 'https://updated.test',
                 'is_active' => 0,
@@ -118,10 +146,51 @@ class LicenseAndAccessTest extends TestCase
         $license = TenantApplication::factory()->for($tenant)->for($app, 'application')->create();
 
         $this->actingAs($admin)
-            ->delete(route('admin.licenses.destroy', $license))
+            ->delete(route('admin.tenants.licenses.destroy', [$tenant, $license]))
             ->assertRedirect(route('admin.tenants.show', $tenant));
 
         $this->assertDatabaseMissing('tenant_applications', ['id' => $license->id]);
+    }
+
+    public function test_regenerate_api_secret_replaces_secret_and_invalidates_old(): void
+    {
+        $admin = $this->superadmin();
+        $tenant = Tenant::factory()->create();
+        $app = Application::factory()->create();
+        $license = TenantApplication::factory()->for($tenant)->for($app, 'application')->create([
+            'api_secret' => 'old-secret-40-chars-aaaaaaaaaaaaaaaaa',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.tenants.licenses.regenerate-secret', [$tenant, $license]))
+            ->assertRedirect(route('admin.tenants.show', $tenant))
+            ->assertSessionHas('new_api_secret')
+            ->assertSessionHas('status');
+
+        $license->refresh();
+        $this->assertNotSame('old-secret-40-chars-aaaaaaaaaaaaaaaaa', $license->api_secret);
+        $this->assertSame(40, strlen($license->api_secret));
+
+        // Activity log harus mencatat regenerate
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'regenerate_api_secret',
+            'subject_type' => TenantApplication::class,
+            'subject_id' => $license->id,
+            'tenant_id' => $tenant->id,
+        ]);
+    }
+
+    public function test_regenerate_api_secret_rejects_license_from_other_tenant(): void
+    {
+        $admin = $this->superadmin();
+        $tenant1 = Tenant::factory()->create();
+        $tenant2 = Tenant::factory()->create();
+        $license = TenantApplication::factory()->for($tenant1)->create();
+
+        // Coba regenerate via URL tenant2
+        $this->actingAs($admin)
+            ->post(route('admin.tenants.licenses.regenerate-secret', [$tenant2, $license]))
+            ->assertNotFound();
     }
 
     public function test_tenant_user_can_quick_access_their_apps(): void

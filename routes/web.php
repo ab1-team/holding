@@ -28,8 +28,9 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('admin')->name('admin.')-
     Route::resource('applications', ApplicationController::class);
     Route::resource('tenants', TenantController::class);
     Route::resource('tenants.licenses', TenantApplicationController::class)
-        ->only(['create', 'store', 'edit', 'update', 'destroy'])
-        ->shallow();
+        ->only(['create', 'store', 'edit', 'update', 'destroy']);
+    Route::post('tenants/{tenant}/licenses/{license}/regenerate-secret', [TenantApplicationController::class, 'regenerateSecret'])
+        ->name('tenants.licenses.regenerate-secret');
     Route::resource('users', UserController::class);
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/activity-logs/{log}', [ActivityLogController::class, 'show'])->name('activity-logs.show');
@@ -38,6 +39,10 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('admin')->name('admin.')-
 Route::middleware(['auth', 'role:tenant_owner,tenant_staff'])->prefix('app')->name('tenant.')->group(function () {
     Route::get('/', [DashboardController::class, 'tenant'])->name('home');
     Route::get('/access/{license}', [TenantAccessController::class, 'redirect'])->name('access');
+    Route::get('/reports', [\App\Http\Controllers\Tenant\ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/{type}', [\App\Http\Controllers\Tenant\ReportController::class, 'show'])->name('reports.show');
+    Route::get('/reports/{type}/csv', [\App\Http\Controllers\Tenant\ReportController::class, 'exportCsv'])->name('reports.csv');
+    Route::get('/reports/{type}/pdf', [\App\Http\Controllers\Tenant\ReportController::class, 'exportPdf'])->name('reports.pdf');
 });
 
 Route::middleware(['auth', 'role:tenant_owner'])->prefix('app/users')->name('tenant.staff.')->group(function () {

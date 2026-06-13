@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['tenant_application_id', 'report_type', 'period', 'payload', 'fetched_at', 'expires_at'])]
 class ReportCache extends Model
 {
+    protected $table = 'report_cache';
     public $timestamps = false;
 
     protected function casts(): array

@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TenantController extends Controller
@@ -89,7 +90,7 @@ class TenantController extends Controller
 
     private function validateData(Request $request, ?int $ignoreId = null): array
     {
-        $slugRule = ['nullable', 'string', 'max:100', 'regex:/^[a-z0-9-]+$/'];
+        $slugRule = ['nullable', 'string', 'max:100', 'regex:/^[a-z0-9-]+$/', Rule::notIn(\App\Support\ReservedSlug::all())];
         $slugRule[] = $ignoreId
             ? 'unique:tenants,slug,' . $ignoreId
             : 'unique:tenants,slug';
@@ -97,6 +98,7 @@ class TenantController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => $slugRule,
+            'domain' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
             'address' => ['nullable', 'string'],

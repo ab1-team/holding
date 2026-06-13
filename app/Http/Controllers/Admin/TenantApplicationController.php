@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Application;
 use App\Models\Tenant;
 use App\Models\TenantApplication;
@@ -70,6 +71,39 @@ class TenantApplicationController extends Controller
         return redirect()
             ->route('admin.tenants.show', $tenantModel)
             ->with('status', "Lisensi {$appName} untuk {$tenantModel->name} berhasil dicabut.");
+    }
+
+    /**
+     * Regenerate api_secret untuk license. Secret lama langsung invalid —
+     * subsidiary yang masih pakai secret lama akan ditolak (401/403).
+     */
+    public function regenerateSecret(Request $request, Tenant $tenant, TenantApplication $license): RedirectResponse
+    {
+        abort_unless($license->tenant_id === $tenant->id, 404);
+
+        $oldSecret = $license->api_secret;
+        $newSecret = Str::random(40);
+
+        $license->forceFill(['api_secret' => $newSecret])->save();
+
+        ActivityLog::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $request->user()->id,
+            'action' => 'regenerate_api_secret',
+            'subject_type' => TenantApplication::class,
+            'subject_id' => $license->id,
+            'metadata' => [
+                'application' => $license->application->name,
+                'old_secret_prefix' => substr($oldSecret, 0, 8) . '...',
+            ],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('admin.tenants.show', $tenant)
+            ->with('status', "API Secret untuk {$license->application->name} berhasil di-regenerate. Secret lama langsung tidak valid.")
+            ->with('new_api_secret', $newSecret);
     }
 
     private function validateData(Request $request, ?TenantApplication $license = null): array

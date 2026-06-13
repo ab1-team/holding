@@ -15,8 +15,8 @@ $roleOptions = [
     @if($isEdit) @method('PUT') @endif
 
     <div class="grid gap-4 sm:grid-cols-2">
-        <x-ui.input name="name" label="Nama" :value="$user->name ?? ''" required />
-        <x-ui.input name="email" type="email" label="Email" :value="$user->email ?? ''" required />
+        <x-ui.input name="name" label="Nama" :value="$user->name ?? ''" placeholder="Nama lengkap" required leading-icon="users" />
+        <x-ui.input name="email" type="email" label="Email" :value="$user->email ?? ''" placeholder="nama@contoh.com" required leading-icon="link" />
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2">
@@ -41,17 +41,14 @@ $roleOptions = [
         </div>
     </div>
 
-    <div>
-        <label for="password" class="mb-1.5 block text-sm font-medium text-on-surface">
-            Kata Sandi @if(! $isEdit) <span class="text-error">*</span> @endif
-        </label>
-        <input type="password" name="password" id="password" {{ $isEdit ? '' : 'required' }} minlength="8" autocomplete="new-password"
-               class="block w-full rounded-lg border border-outline bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none @error('password') border-error @enderror">
-        <p class="mt-1.5 text-xs text-on-surface-variant">
-            @if($isEdit) Kosongkan jika tidak ingin mengubah. Minimal 8 karakter. @else Password akan di-generate otomatis dan ditampilkan sekali setelah simpan. Kosongkan untuk override. @endif
-        </p>
-        @error('password') <p class="mt-1.5 text-xs text-error">{{ $message }}</p> @enderror
-    </div>
+    <x-ui.input
+        name="password"
+        type="password"
+        label="Kata Sandi"
+        leading-icon="lock-closed"
+        :required="! $isEdit"
+        :placeholder="$isEdit ? 'Kosongkan jika tidak ingin mengubah' : null"
+        :hint="$isEdit ? 'Kosongkan jika tidak ingin mengubah. Minimal 8 karakter.' : 'Password akan di-generate otomatis dan ditampilkan sekali setelah simpan. Kosongkan untuk override. Minimal 8 karakter.'" />
 
     <div class="rounded-2xl bg-surface-container p-4">
         <x-ui.switcher name="is_active" label="Pengguna Aktif" :checked="$user->is_active ?? true" />

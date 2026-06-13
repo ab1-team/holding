@@ -3,11 +3,20 @@
 @section('title', "Edit {$user->name} — Holding App")
 
 @section('content')
-<div class="mb-6">
-    <p class="text-xs font-semibold uppercase tracking-wider text-primary">Master</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-on-surface">Edit {{ $user->name }}</h1>
-</div>
-<x-ui.card>
+<x-ui.page-header
+    overline="Master"
+    title="Edit Pengguna"
+    subtitle="Perbarui data <strong class='font-semibold text-on-surface'>{{ $user->name }}</strong> &middot; <code class='rounded bg-surface-container px-1.5 py-0.5 text-xs'>{{ $user->email }}</code>.">
+    <x-slot:actions>
+        <x-ui.button :href="route('admin.users.index')" variant="outlined" icon="arrow-left">Kembali</x-ui.button>
+    </x-slot:actions>
+</x-ui.page-header>
+
+@if($errors->any())
+    <div class="mb-4"><x-ui.alert variant="error" icon="exclamation" title="Gagal menyimpan.">{{ $errors->first() }}</x-ui.alert></div>
+@endif
+
+<x-ui.card overline="Formulir" title="Data Pengguna">
     @include('admin.users._form')
 </x-ui.card>
 @endsection
