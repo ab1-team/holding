@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ReportCache;
 use App\Models\TenantApplication;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -74,7 +73,8 @@ class SubsidiaryReportService
         [$year, $month] = array_pad(explode('-', $period, 2), 2, null);
         $params = [
             'tahun' => $year,
-            'bulan' => $month,
+            // HOLDING-API.md §3: bulan int 1-12, no zero-pad (validator reject string "06").
+            'bulan' => (int) $month,
         ];
         if ($hari !== null) {
             $params['hari'] = (string) $hari;
@@ -88,9 +88,13 @@ class SubsidiaryReportService
     /**
      * Fetch report dari subsidiary (HTTP). Tidak pakai cache.
      *
-     * @return array{status:string,period:string,generated_at:?string,data:array<int,array<string,mixed>>}|null
+     * SELALU return array:
+     * - Success: `['status' => 'success', 'period' => ..., 'generated_at' => ..., 'data' => [...]]`
+     * - Error:   `['status' => 'error', 'reason' => '...', 'http_code' => ..., 'message' => '...']`
+     *
+     * @return array{status:string,period?:string,generated_at?:?string,data?:array<int,array<string,mixed>>,reason?:string,http_code?:?int,message?:string}
      */
-    public function fetchLive(TenantApplication $license, string $reportType, string $period): ?array
+    public function fetchLive(TenantApplication $license, string $reportType, string $period): array
     {
         if (! isset(self::ENDPOINTS[$reportType])) {
             throw new \InvalidArgumentException("Tipe laporan tidak dikenal: {$reportType}");
@@ -103,7 +107,7 @@ class SubsidiaryReportService
                 ->retry(self::HTTP_RETRY_TIMES, 250, throw: false)
                 ->withHeaders([
                     'X-Holding-Token' => $license->api_secret,
-                    'X-Holding-Tenant' => $license->tenant->getHoldingTenantId(),
+                    'X-Holding-Tenant' => $this->resolveTenantHeader($license),
                     'Accept' => 'application/json',
                 ])
                 ->get($url);
@@ -114,145 +118,166 @@ class SubsidiaryReportService
                 'period' => $period,
                 'error' => $e->getMessage(),
             ]);
-            return null;
-        }
-
-        if (! $response->successful()) {
-            Log::warning('Subsidiary returned non-2xx', [
-                'license_id' => $license->id,
-                'status' => $response->status(),
-            ]);
-            return null;
-        }
-
-        $body = $response->json();
-        if (! is_array($body) || ($body['status'] ?? null) !== 'success' || ! is_array($body['data'] ?? null)) {
-            Log::warning('Subsidiary returned malformed payload', [
-                'license_id' => $license->id,
-            ]);
-            return null;
-        }
-
-        return [
-            'status' => 'success',
-            'period' => (string) ($body['period'] ?? $period),
-            'generated_at' => $body['generated_at'] ?? null,
-            'data' => array_values(array_map(fn ($row) => [
-                'account_code' => (string) ($row['account_code'] ?? ''),
-                'account_name' => (string) ($row['account_name'] ?? ''),
-                'amount' => is_numeric($row['amount'] ?? null) ? (int) $row['amount'] : 0,
-                'notes' => $row['notes'] ?? null,
-            ], $body['data'])),
-        ];
-    }
-
-    /**
-     * Ambil report dengan cache (read-through). Jika cache masih valid → pakai cache.
-     * Jika expired / tidak ada → fetch dari subsidiary, simpan ke cache, return.
-     *
-     * @return array{status:string,period:string,generated_at:?string,data:array<int,array<string,mixed>>}|null
-     */
-    public function get(TenantApplication $license, string $reportType, string $period): ?array
-    {
-        $cache = ReportCache::where('tenant_application_id', $license->id)
-            ->where('report_type', $reportType)
-            ->where('period', $period)
-            ->first();
-
-        if ($cache && ! $cache->isExpired()) {
-            return $cache->payload;
-        }
-
-        $payload = $this->fetchLive($license, $reportType, $period);
-        if ($payload === null) {
-            // fallback ke cache basi (lebih baik daripada kosong total)
-            return $cache?->payload;
-        }
-
-        ReportCache::updateOrCreate(
-            [
-                'tenant_application_id' => $license->id,
-                'report_type' => $reportType,
-                'period' => $period,
-            ],
-            [
-                'payload' => $payload,
-                'fetched_at' => now(),
-                'expires_at' => now()->addMinutes(self::CACHE_TTL_MINUTES),
-            ],
-        );
-
-        return $payload;
-    }
-
-    /**
-     * Gabungkan payload banyak license jadi satu struktur komparatif.
-     * Baris digabung pakai composite key (account_code + account_name).
-     *
-     * Input: ['license_id' => payload|null, ...]
-     * Output: rows + per-license amount map + totals per app.
-     *
-     * @param  array<int, TenantApplication>  $licenses
-     * @param  array<int, array{status:string,period:string,generated_at:?string,data:array<int,array<string,mixed>>}|null>  $payloads  Indexed by license.id
-     * @return array{rows:array<int,array{account_code:string,account_name:string,amounts:array<int,int>,notes:?string}>,columns:array<int,array{license_id:int,label:string,application:string,total:int}>}
-     */
-    public function mergeComparative(array $licenses, array $payloads, string $reportType, string $period): array
-    {
-        $columns = [];
-        $byKey = [];
-
-        foreach ($licenses as $license) {
-            $payload = $payloads[$license->id] ?? null;
-            $total = 0;
-            $rows = $payload['data'] ?? [];
-
-            foreach ($rows as $row) {
-                $key = $this->rowKey($row['account_code'] ?? '', $row['account_name'] ?? '');
-                $byKey[$key] ??= [
-                    'account_code' => (string) ($row['account_code'] ?? ''),
-                    'account_name' => (string) ($row['account_name'] ?? ''),
-                    'notes' => $row['notes'] ?? null,
-                    'amounts' => [],
-                ];
-                $byKey[$key]['amounts'][$license->id] = (int) ($row['amount'] ?? 0);
-                $byKey[$key]['notes'] ??= $row['notes'] ?? null;
-                $total += (int) ($row['amount'] ?? 0);
-            }
-
-            $columns[] = [
-                'license_id' => $license->id,
-                'label' => $license->label ?: $license->application->name,
-                'application' => $license->application->name,
-                'instance_url' => $license->instance_url,
-                'total' => $total,
-                'available' => $payload !== null,
+            return [
+                'status' => 'error',
+                'reason' => 'unreachable',
+                'http_code' => null,
+                'message' => 'Tidak dapat menghubungi subsidiary: ' . $e->getMessage(),
             ];
         }
 
-        // sort by account_code asc, then by account_name asc; empty codes last
-        uasort($byKey, function ($a, $b) {
-            $ac = $a['account_code'];
-            $bc = $b['account_code'];
-            if ($ac === '' && $bc !== '') return 1;
-            if ($bc === '' && $ac !== '') return -1;
-            $cmp = strcmp($ac, $bc);
-            if ($cmp !== 0) return $cmp;
-            return strcmp($a['account_name'], $b['account_name']);
-        });
+        if (! $response->successful()) {
+            $httpCode = $response->status();
+            $reason = match (true) {
+                $httpCode === 401 || $httpCode === 403 => 'token_rejected',
+                $httpCode === 422 => 'validation_error',
+                $httpCode >= 500 => 'server_error',
+                $httpCode >= 400 => 'forbidden',
+                default => 'unknown',
+            };
+            Log::warning('Subsidiary returned non-2xx', [
+                'license_id' => $license->id,
+                'status' => $httpCode,
+                'reason' => $reason,
+            ]);
+            return [
+                'status' => 'error',
+                'reason' => $reason,
+                'http_code' => $httpCode,
+                'message' => "Subsidiary menjawab HTTP {$httpCode}.",
+            ];
+        }
 
+        $body = $response->json();
+        if (! is_array($body)) {
+            Log::warning('Subsidiary returned non-JSON response', [
+                'license_id' => $license->id,
+            ]);
+            return [
+                'status' => 'error',
+                'reason' => 'malformed',
+                'http_code' => $response->status(),
+                'message' => 'Respons subsidiary bukan JSON valid.',
+            ];
+        }
+
+        // Adapt: subsidiary bisa return 2 format:
+        // 1. HOLDING-API.md: `{success: true, data: [...]}` (dengan `success` boolean)
+        // 2. Expected shape: `{status: 'success', data: [...]}` (dengan `status` string)
+        $adapted = self::adaptSubsidiaryPayload($body, $reportType, $period);
+
+        if (($adapted['status'] ?? null) === 'error') {
+            Log::warning('Subsidiary adaptasi gagal', [
+                'license_id' => $license->id,
+                'report_type' => $reportType,
+                'reason' => $adapted['reason'] ?? 'unknown',
+            ]);
+            return [
+                'status' => 'error',
+                'reason' => $adapted['reason'] ?? 'malformed',
+                'http_code' => $response->status(),
+                'message' => $adapted['message'] ?? 'Respons subsidiary tidak sesuai format.',
+            ];
+        }
+
+        return $adapted;
+    }
+
+    /**
+     * Ambil report langsung dari subsidiary (tanpa cache).
+     *
+     * @return array{status:string,...}
+     */
+    public function get(TenantApplication $license, string $reportType, string $period): array
+    {
+        // No cache. Selalu fetch live.
+        // Rationale: cache bikin "April-Mei 0 baris" walaupun subsidiary sudah
+        // punya data baru (cached empty success dengan TTL 30 menit). Untuk
+        // konsistensi financial report, lebih baik selalu live. Latency ~1-2s
+        // masih acceptable untuk single-tenant.
+        return $this->fetchLive($license, $reportType, $period);
+    }
+
+    /**
+     * Adaptasi response subsidiary ke format internal holding.
+     *
+     * Per HOLDING-API.md §2-4: pass-through payload apa adanya.
+     * Tiap endpoint punya struktur sendiri (Neraca hierarki 3-level,
+     * Laba Rugi object {pendapatan, beban, ...}, CALK object {point_a,
+     * catatan, rincian_akun, ...}). Holding view render struktur asli
+     * per buku — JANGAN flatten di adapter.
+     *
+     * Normalisasi minimum:
+     * - status: 'success' | 'error' (boolean → string)
+     * - period: YYYY-MM (derived dari tgl_kondisi)
+     * - generated_at: ISO timestamp (derived dari tgl_kondisi)
+     * - data: array apa adanya
+     * - sub_judul, ringkasan, point_a, catatan, saldo_calk, penandatangan: pass-through
+     */
+    public static function adaptSubsidiaryPayload(array $body, string $reportType, string $fallbackPeriod): array
+    {
+        // Already-normalized shape (defensive).
+        if (isset($body['status']) && $body['status'] === 'success' && array_key_exists('data', $body)) {
+            return $body;
+        }
+
+        $success = (bool) ($body['success'] ?? false);
+        if (! $success) {
+            return [
+                'status' => 'error',
+                'reason' => 'malformed',
+                'message' => 'Subsidiary response: success=false atau tidak ada data.',
+            ];
+        }
+
+        // tgl_kondisi bisa di top-level (neraca) atau di periode.{tgl_kondisi} (laba_rugi, calk).
+        $tglKondisi = (string) (
+            $body['tgl_kondisi']
+            ?? ($body['periode']['tgl_kondisi'] ?? '')
+        );
+        $period = $tglKondisi !== '' ? substr($tglKondisi, 0, 7) : $fallbackPeriod;
+        $generatedAt = $tglKondisi !== '' ? $tglKondisi . 'T00:00:00Z' : null;
+
+        // Pass-through data apa adanya — biar view render per-buku.
         return [
-            'rows' => array_values($byKey),
-            'columns' => $columns,
+            'status' => 'success',
             'report_type' => $reportType,
             'period' => $period,
+            'tgl_kondisi' => $tglKondisi,
+            'generated_at' => $generatedAt,
+            'laporan' => $body['laporan'] ?? null,
+            'kecamatan' => $body['kecamatan'] ?? null,
+            'sub_judul' => $body['sub_judul']
+                ?? ($body['periode']['sub_judul'] ?? null),
+            'tgl_mad' => $body['periode']['tgl_mad'] ?? ($body['tgl_mad'] ?? null),
+            'data' => $body['data'] ?? null,
+            'ringkasan' => $body['ringkasan'] ?? null,
+            'point_a' => $body['point_a']
+                ?? ($body['data']['point_a'] ?? null)
+                ?? ($body['ringkasan']['point_a'] ?? null),
+            'catatan' => $body['catatan'] ?? ($body['data']['catatan'] ?? null),
+            'saldo_calk' => $body['saldo_calk'] ?? ($body['data']['saldo_calk'] ?? null),
+            'penandatangan' => $body['penandatangan'] ?? ($body['data']['penandatangan'] ?? null),
         ];
     }
 
     /**
-     * Composite key untuk matching baris laporan.
+     * Resolve nilai X-Holding-Tenant yang dikirim ke subsidiary.
+     *
+     * Prioritas:
+     * 1. Host dari `instance_url` (mis. `https://app.sidbm.net/` → `app.sidbm.net`).
+     *    Reliable karena subsidiary validasi terhadap `web_kec` atau `web_alternatif`
+     *    di DB mereka — biasanya match dengan host yang dipakai holding.
+     * 2. Fallback ke `tenant->getHoldingTenantId()`.
      */
-    public function rowKey(string $accountCode, string $accountName): string
+    public function resolveTenantHeader(TenantApplication $license): string
     {
-        return $accountCode . '||' . $accountName;
+        $host = parse_url($license->instance_url, PHP_URL_HOST);
+
+        if (is_string($host) && $host !== '') {
+            return $host;
+        }
+
+        return $license->tenant->getHoldingTenantId();
     }
 }

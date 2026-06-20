@@ -3,6 +3,11 @@
 @section('title', "{$user->name} — Holding App")
 
 @section('content')
+<x-ui.breadcrumb :items="[
+    ['label' => 'Pengguna', 'href' => route('admin.users.index')],
+    ['label' => $user->name],
+]" class="mb-2" />
+
 <x-ui.page-header
     overline="Pengguna"
     title="{{ $user->name }}"
@@ -16,22 +21,36 @@
     {{-- status handled by layout --}}
 @endif
 @if(session('new_password'))
-    <div class="mb-4" x-data="{ copied: false }">
+    <div class="mb-4">
         <x-ui.alert variant="warning" title="Password baru telah di-generate.">
+            <div x-data="{ copied: false }">
             Salin nilai di bawah — hanya ditampilkan sekali dan tidak dapat dilihat kembali.
             <div class="mt-3 flex max-w-md flex-col gap-2 sm:flex-row sm:items-center">
                 <input type="text" id="newPwdInput" value="{{ session('new_password') }}" readonly
                        class="block w-full rounded-lg border border-tertiary-container bg-surface-container-lowest px-3 py-2 font-mono text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30"
                        @focus="$el.select()">
                 <button type="button"
-                        @click="navigator.clipboard.writeText(document.getElementById('newPwdInput').value); copied = true; setTimeout(() => copied = false, 2000)"
+                        @click="
+                            const el = document.getElementById('newPwdInput');
+                            const text = el.value;
+                            const finish = () => { copied = true; setTimeout(() => copied = false, 2000); };
+                            if (navigator.clipboard && window.isSecureContext) {
+                                navigator.clipboard.writeText(text).then(finish).catch(() => {
+                                    el.select(); document.execCommand('copy'); finish();
+                                });
+                            } else {
+                                el.select(); document.execCommand('copy'); finish();
+                            }
+                        "
                         :class="copied ? 'bg-secondary text-on-secondary' : 'bg-tertiary text-on-tertiary'"
                         class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition hover:opacity-90">
-                    <x-ui.icon :name="copied ? 'check' : 'copy'" class="h-3.5 w-3.5" />
+                    <x-ui.icon name="copy" class="h-3.5 w-3.5" x-show="!copied" />
+                    <x-ui.icon name="check" class="h-3.5 w-3.5" x-show="copied" />
                     <span x-text="copied ? 'Tersalin!' : 'Salin'">Salin</span>
                 </button>
             </div>
             <p class="mt-2 text-[11px] text-on-surface-variant">Bagikan ke user melalui kanal aman (bukan email). User harus ganti password saat login pertama.</p>
+            </div>
         </x-ui.alert>
     </div>
 @endif

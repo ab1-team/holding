@@ -11,16 +11,17 @@ use Symfony\Component\HttpFoundation\Response;
 class TenantResolver
 {
     /**
-     * Resolve tenant dari subdomain host.
+     * Resolve tenant dari host.
      *
      * - `admin.{base}` → vendor panel (no tenant)
      * - `{slug}.{base}` → tenant panel (lookup by slug)
+     * - Custom `domain` (full host) → tenant panel (lookup by domain)
      * - `{base}` (apex) atau IP/host lain → redirect ke admin subdomain
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $host = $request->getHost();
-        $base = config('app.domain_base');
+        $host = strtolower($request->getHost());
+        $base = strtolower((string) config('app.domain_base'));
 
         // Local dev/test fallback — kalau host tidak sesuai base, treat as admin (apex).
         if (! $base || $host === $base || $host === '127.0.0.1' || $host === 'localhost') {
@@ -30,26 +31,34 @@ class TenantResolver
             return $next($request);
         }
 
-        $sub = $this->extractSubdomain($host, $base);
-
-        if ($sub === null) {
+        // Apex → redirect ke admin.
+        if ($host === $base) {
             return redirect()->away('http://admin.' . $base . $request->getRequestUri());
         }
 
-        if ($sub === 'admin') {
+        // Reserved admin subdomain → vendor panel.
+        if ($host === 'admin.' . $base) {
             app()->instance('current_tenant', null);
             $request->attributes->set('is_vendor_panel', true);
 
             return $next($request);
         }
 
-        if (ReservedSlug::isReserved($sub)) {
+        // Reserved subdomain lain → 404.
+        $sub = $this->extractSubdomain($host, $base);
+        if ($sub !== null && ReservedSlug::isReserved($sub)) {
             abort(404, 'Subdomain tidak tersedia.');
         }
 
-        $tenant = Tenant::where('slug', $sub)->first();
+        // Resolve tenant:
+        // 1. Full host match ke `domain` field (custom domain, mis. tenantku.com)
+        // 2. Subdomain match ke `slug` (default, mis. acme.holding.test)
+        $tenant = Tenant::where('domain', $host)
+            ->orWhere('slug', $sub)
+            ->first();
+
         if (! $tenant) {
-            abort(404, "Tenant '{$sub}' tidak ditemukan.");
+            abort(404, "Tenant '{$host}' tidak ditemukan.");
         }
 
         app()->instance('current_tenant', $tenant);
@@ -59,15 +68,12 @@ class TenantResolver
         return $next($request);
     }
 
+    /**
+     * Extract subdomain dari host. Return null kalau host bukan subdomain dari base.
+     * Contoh: extractSubdomain('acme.holding.test', 'holding.test') = 'acme'.
+     */
     private function extractSubdomain(string $host, string $base): ?string
     {
-        $base = strtolower($base);
-        $host = strtolower($host);
-
-        if ($host === $base) {
-            return null;
-        }
-
         $suffix = '.' . $base;
         if (! str_ends_with($host, $suffix)) {
             return null;

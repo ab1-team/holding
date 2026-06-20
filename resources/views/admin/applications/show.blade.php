@@ -4,6 +4,11 @@
 
 @section('content')
 
+<x-ui.breadcrumb :items="[
+    ['label' => 'Aplikasi', 'href' => route('admin.applications.index')],
+    ['label' => $application->name],
+]" class="mb-2" />
+
 <x-ui.page-header
     overline="Aplikasi"
     title="{{ $application->name }}"

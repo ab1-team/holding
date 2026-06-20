@@ -161,6 +161,34 @@ class AuthFlowTest extends TestCase
             ->assertSee('3');
     }
 
+    public function test_tenant_resolves_via_full_domain_not_just_slug(): void
+    {
+        $tenant = Tenant::factory()->create([
+            'slug' => 'satu-desa-mandiri',
+            'domain' => 'acme.holding.test',
+        ]);
+        $owner = User::factory()->forTenant($tenant->id, 'tenant_owner')->create();
+
+        // Akses via domain (full host), bukan slug.
+        $this->withServerVariables(['HTTP_HOST' => 'acme.holding.test'])
+            ->actingAs($owner)
+            ->get('/app')
+            ->assertOk()
+            ->assertSee($tenant->name);
+    }
+
+    public function test_tenant_resolves_via_subdomain_slug(): void
+    {
+        $tenant = Tenant::factory()->create(['slug' => 'acme']);
+        $owner = User::factory()->forTenant($tenant->id, 'tenant_owner')->create();
+
+        $this->withServerVariables(['HTTP_HOST' => 'acme.holding.test'])
+            ->actingAs($owner)
+            ->get('/app')
+            ->assertOk()
+            ->assertSee($tenant->name);
+    }
+
     public function test_tenant_home_lists_their_active_applications(): void
     {
         $app = Application::factory()->create(['name' => 'EnStore']);

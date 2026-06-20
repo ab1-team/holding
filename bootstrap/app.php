@@ -18,9 +18,22 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
         ]);
+        // Paksa no-cache untuk /login agar CSRF token di form selalu fresh
+        // setelah session expire (menghindari 419 Page Expired).
+        $middleware->appendToGroup('web', \App\Http\Middleware\NoCacheForAuthenticatedRedirects::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // CSRF token mismatch → redirect ke /login dengan flash message.
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['message' => 'Sesi Anda telah berakhir. Silakan login ulang.'], 419);
+            }
+            return redirect()
+                ->route('login')
+                ->with('status', 'Sesi Anda telah berakhir. Silakan login ulang.');
+        });
     })->create();

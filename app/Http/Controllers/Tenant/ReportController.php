@@ -38,13 +38,13 @@ class ReportController extends Controller
     }
 
     /**
-     * Tampilkan laporan komparatif.
+     * Tampilkan laporan per-buku (struktur asli subsidiary).
      */
     public function show(Request $request, string $type): View
     {
         $context = $this->buildReportContext($request, $type);
 
-        return view('tenant.reports.show', $context);
+        return view("tenant.reports.{$type}", $context);
     }
 
     /**
@@ -61,36 +61,38 @@ class ReportController extends Controller
             now()->format('Ymd-His')
         );
 
-        $comparative = $context['comparative'];
-        $columns = $comparative['columns'];
-        $rows = $comparative['rows'];
+        $licenses = $context['licenses'];
+        $payloads = $context['payloads'];
 
-        $callback = function () use ($columns, $rows) {
+        $callback = function () use ($licenses, $payloads, $type) {
             $out = fopen('php://output', 'w');
-            // BOM agar Excel detect UTF-8
             fwrite($out, "\xEF\xBB\xBF");
 
-            $header = array_merge(['Kode', 'Nama Akun'], array_map(fn ($c) => $c['label'], $columns));
+            $header = ['Kode', 'Nama Akun'];
+            foreach ($licenses as $license) {
+                $header[] = $license->label ?: $license->application->name;
+            }
             fputcsv($out, $header, ';');
 
-            foreach ($rows as $row) {
-                $line = [
-                    $row['account_code'],
-                    $row['account_name'],
-                ];
-                foreach ($columns as $col) {
-                    $amount = $row['amounts'][$col['license_id']] ?? null;
+            // Flatten rows per license, indexed by composite key, output per line.
+            // (Per-buku structure: pass through all leaf nodes with kode_akun+saldo)
+            $byKey = [];
+            foreach ($licenses as $license) {
+                $payload = $payloads[$license->id] ?? null;
+                if (! is_array($payload) || ($payload['status'] ?? null) !== 'success') {
+                    continue;
+                }
+                $this->collectRowsForCsv($payload['data'] ?? [], $byKey, $license->id, $type);
+            }
+
+            foreach ($byKey as $row) {
+                $line = [$row['account_code'], $row['account_name']];
+                foreach ($licenses as $license) {
+                    $amount = $row['amounts'][$license->id] ?? null;
                     $line[] = $amount === null ? '' : $amount;
                 }
                 fputcsv($out, $line, ';');
             }
-
-            // Total row
-            $totalLine = ['Total', ''];
-            foreach ($columns as $col) {
-                $totalLine[] = $col['total'];
-            }
-            fputcsv($out, $totalLine, ';');
 
             fclose($out);
         };
@@ -102,20 +104,89 @@ class ReportController extends Controller
     }
 
     /**
+     * Recursively collect leaf rows (with kode_akun + saldo) into $byKey.
+     */
+    private function collectRowsForCsv(array $node, array &$byKey, int $licenseId, string $type, string $section = ''): void
+    {
+        if (! is_array($node)) {
+            return;
+        }
+
+        $isAssoc = ! array_is_list($node);
+
+        if ($isAssoc && isset($node['rincian_akun']) && is_array($node['rincian_akun'])) {
+            $this->collectRowsForCsv($node['rincian_akun'], $byKey, $licenseId, $type, $section);
+            return;
+        }
+
+        if ($isAssoc) {
+            $sections = ['pendapatan', 'beban', 'pendapatan_non_ops', 'beban_non_ops'];
+            $found = false;
+            foreach ($sections as $sec) {
+                if (isset($node[$sec]) && is_array($node[$sec])) {
+                    $found = true;
+                    $this->collectRowsForCsv($node[$sec], $byKey, $licenseId, $type, $sec);
+                }
+            }
+            if ($found) {
+                return;
+            }
+        }
+
+        $elements = $isAssoc ? [$node] : $node;
+        foreach ($elements as $element) {
+            if (! is_array($element)) {
+                continue;
+            }
+            // Support both subsidiary shape (kode_akun/nama_akun/saldo) and
+            // normalized shape (account_code/account_name/amount).
+            $kode = $element['kode_akun'] ?? $element['account_code'] ?? ($element['id'] ?? null);
+            $nama = $element['nama_akun'] ?? $element['account_name'] ?? ($element['nama'] ?? '');
+            if ($kode !== null) {
+                $amount = (float) ($element['saldo'] ?? $element['amount'] ?? 0);
+                $key = (string) $kode . '||' . (string) $nama;
+                $byKey[$key] ??= [
+                    'account_code' => (string) $kode,
+                    'account_name' => (string) $nama,
+                    'amounts' => [],
+                ];
+                $byKey[$key]['amounts'][$licenseId] = $amount;
+            }
+            foreach (['rekening', 'detail', 'akun2', 'akun3'] as $childKey) {
+                if (isset($element[$childKey]) && is_array($element[$childKey])) {
+                    $this->collectRowsForCsv($element[$childKey], $byKey, $licenseId, $type, $section);
+                }
+            }
+        }
+    }
+
+    /**
      * Export PDF (dompdf).
+     *
+     * View mode:
+     * - `?view=comparative` (default) — multi-license side-by-side, kolom per subsidiary
+     * - `?view=total` — konsolidasi, 1 kolom total (sum dari semua subsidiary)
      */
     public function exportPdf(Request $request, string $type)
     {
         $context = $this->buildReportContext($request, $type, log: 'export_report_pdf');
 
+        $view = $request->input('view', 'comparative');
+        if (! in_array($view, ['comparative', 'total'], true)) {
+            $view = 'comparative';
+        }
+
         $filename = sprintf(
             'laporan-%s-%s-%s.pdf',
             $type,
+            $view,
             $context['period'],
             now()->format('Ymd-His')
         );
 
-        $pdf = Pdf::loadView('tenant.reports.pdf', $context)
+        // Semua laporan landscape. Multi-license komparatif (license baru muncul di sisi kanan),
+        // jadi tabel memanjang horizontal. Landscape lebih natural untuk komparatif.
+        $pdf = Pdf::loadView("tenant.reports.{$type}-{$view}-pdf", $context)
             ->setPaper('a4', 'landscape')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
@@ -132,7 +203,19 @@ class ReportController extends Controller
     }
 
     /**
-     * Bangun konteks laporan: licenses, payloads, comparative + log view/export.
+     * Orientation PDF: semua landscape. Multi-license komparatif side-by-side,
+     * jadi tabel memanjang horizontal — landscape lebih natural.
+     */
+    public static function pdfOrientation(string $type): string
+    {
+        return 'landscape';
+    }
+
+    /**
+     * Bangun konteks laporan: licenses, payloads, + log view/export.
+     *
+     * Setiap payload adalah data asli subsidiary (pass-through per HOLDING-API.md §2-4).
+     * Tidak ada flatten di adapter — view per-buku render struktur asli.
      *
      * @return array<string, mixed>
      */
@@ -172,8 +255,6 @@ class ReportController extends Controller
             $payloads[$license->id] = $this->service->get($license, $type, $period);
         }
 
-        $comparative = $this->service->mergeComparative($licenses->all(), $payloads, $type, $period);
-
         if ($log) {
             ActivityLog::create([
                 'tenant_id' => $tenant->id,
@@ -192,7 +273,7 @@ class ReportController extends Controller
         }
 
         return [
-            'comparative' => $comparative,
+            'payloads' => $payloads,
             'reportType' => $type,
             'reportLabel' => SubsidiaryReportService::reportTypeLabels()[$type],
             'period' => $period,

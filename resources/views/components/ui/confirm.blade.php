@@ -1,5 +1,19 @@
-@props(['trigger' => null])
-<div x-data="{ open: false }" x-on:keydown.escape.window="open = false" class="contents">
+@props([
+    'trigger' => null,
+    'title' => null,
+    'message' => null,
+    'confirmLabel' => 'Konfirmasi',
+    'cancelLabel' => 'Batal',
+    'action' => null,
+    'method' => 'POST',
+    'variant' => 'primary', // 'primary' | 'danger'
+])
+@php
+    $buttonClasses = $variant === 'danger'
+        ? 'bg-error text-on-error hover:bg-red-700'
+        : 'bg-primary text-on-primary hover:bg-indigo-700';
+@endphp
+<div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
     <span @click="open = true" class="contents">
         @if($trigger)
             {{ $trigger }}
@@ -7,6 +21,7 @@
             {{ $slot }}
         @endif
     </span>
+
     <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div x-show="open" x-transition.opacity @click="open = false" class="absolute inset-0 bg-black/50"></div>
         <div x-show="open" x-transition @click.stop class="relative w-full max-w-md overflow-hidden rounded-2xl bg-surface-container-lowest shadow-elevated-lg">
@@ -17,10 +32,12 @@
                     </div>
                     <div class="min-w-0 flex-1">
                         @if($title)
-                        <h2 class="text-base font-semibold text-on-surface">{{ $title }}</h2>
+                        <h2 class="text-left text-base font-semibold text-on-surface" style="text-align: left; text-wrap: auto;">{{ $title }}</h2>
                         @endif
                         @if($message)
-                        <p class="mt-1.5 text-sm text-on-surface-variant">{{ $message }}</p>
+                        <div class="mt-1.5 text-sm text-on-surface-variant leading-relaxed" style="text-align: left; text-wrap: auto;">
+                            {!! $message !!}
+                        </div>
                         @endif
                     </div>
                 </div>
@@ -31,7 +48,7 @@
                 <form method="POST" action="{{ $action }}" class="inline">
                     @csrf
                     @if($method !== 'POST') @method($method) @endif
-                    <button type="submit" class="rounded-full px-5 py-2 text-sm font-semibold transition {{ $buttonClasses() }}">{{ $confirmLabel }}</button>
+                    <button type="submit" class="rounded-full px-5 py-2 text-sm font-semibold transition {{ $buttonClasses }}">{{ $confirmLabel }}</button>
                 </form>
                 @endif
             </div>

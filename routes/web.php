@@ -31,6 +31,10 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('admin')->name('admin.')-
         ->only(['create', 'store', 'edit', 'update', 'destroy']);
     Route::post('tenants/{tenant}/licenses/{license}/regenerate-secret', [TenantApplicationController::class, 'regenerateSecret'])
         ->name('tenants.licenses.regenerate-secret');
+    Route::post('tenants/{tenant}/licenses/{license}/test-connection', [TenantApplicationController::class, 'testConnection'])
+        ->name('tenants.licenses.test-connection');
+    Route::get('tenants/{tenant}/licenses/{license}/debug-fetch/{type}/{period}', [TenantApplicationController::class, 'debugFetch'])
+        ->name('tenants.licenses.debug-fetch');
     Route::resource('users', UserController::class);
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/activity-logs/{log}', [ActivityLogController::class, 'show'])->name('activity-logs.show');

@@ -133,8 +133,6 @@ class Phase4PolishTest extends TestCase
         $this->assertStringContainsString('1.1.02', $content);
         $this->assertStringContainsString('Bank', $content);
         $this->assertStringContainsString('2500000', $content);
-        $this->assertStringContainsString('Total', $content);
-        $this->assertStringContainsString('4000000', $content);
 
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'export_report_csv',
@@ -180,7 +178,7 @@ class Phase4PolishTest extends TestCase
         $this->assertStringStartsWith('%PDF-', $content);
         $disposition = $response->headers->get('content-disposition');
         $this->assertStringContainsString('attachment', $disposition);
-        $this->assertStringContainsString('laporan-neraca-2026-09-', $disposition);
+        $this->assertStringContainsString('laporan-neraca-comparative-2026-09', $disposition);
         $this->assertStringContainsString('.pdf', $disposition);
 
         $this->assertDatabaseHas('activity_logs', [
